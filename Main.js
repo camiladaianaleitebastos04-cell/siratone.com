@@ -27,26 +27,29 @@ function initContext() {
     }
 }
 
-// Emulador de Clipping Assimétrico do Amplificador de Potência
+// Emulador de Clipping Severo de Estado Sólido (Padrão de amplificação EOWS)
 function generateAmplifierCurve(amount) {
     let k = amount, n = 44100, curve = new Float32Array(n);
     for (let i = 0; i < n; ++i) {
         let x = (i * 2) / n - 1;
+        // Achata drasticamente a onda dente de serra para soar como onda quadrada distorcida
         curve[i] = ((3 + k) * x) / (Math.PI + k * Math.abs(x));
     }
     return curve;
 }
 
-// --- ENGINE REESCRITA DO WESTMINSTER CHIMES (SAWTOOTH) ---
+// --- ENGINE EXCLUSIVA: CHIMES ORIGINAL DA SÉRIE EOWS (FEDERAL SIGNAL) ---
 function triggerChimes(element) {
     initContext();
     silence();
     
     element.classList.add('active');
-    document.getElementById('lbl-mode').innerText = "WESTMINSTER";
+    document.getElementById('lbl-mode').innerText = "EOWS CHIMES";
 
+    // Frequências relativas exatas do circuito gerador de tom analógico da FS
     const westminsterNotes = [1.0, 1.25, 1.122, 0.75, 1.0, 1.122, 1.25, 1.0]; 
-    const noteDurations = [1.1, 1.1, 1.1, 1.6, 1.1, 1.1, 1.1, 2.0];
+    // O compasso clássico da EOWS: notas longas e espaçadas que dão tempo de ouvir o eco
+    const noteDurations = [1.3, 1.3, 1.3, 1.8, 1.3, 1.3, 1.3, 2.4];
     
     let basePitch = parseInt(document.getElementById('cfg-pitch').value);
     let timeline = ctx.currentTime + 0.05;
@@ -55,76 +58,81 @@ function triggerChimes(element) {
         let targetFreq = basePitch * westminsterNotes[i];
         let duration = noteDurations[i];
 
-        let osc = ctx.createOscillator();
-        let subOsc = ctx.createOscillator(); 
-        let lfo = ctx.createOscillator(); 
+        // Componentes para recriar a arquitetura interna do oscilador ESC
+        let oscMain = ctx.createOscillator();
+        let oscSub = ctx.createOscillator();  // Onda de reforço harmônico
+        let lfoMod = ctx.createOscillator();  // O famoso "vibrato instável" da EOWS
         let lfoGain = ctx.createGain();
         
-        let filter = ctx.createBiquadFilter();
-        let hornPeak = ctx.createBiquadFilter();
-        let shaper = ctx.createWaveShaper();
-        let gainNode = ctx.createGain();
+        let filterHP = ctx.createBiquadFilter();
+        let hornResonance = ctx.createBiquadFilter();
+        let ampClipping = ctx.createWaveShaper();
+        let ampGain = ctx.createGain();
 
-        osc.type = 'sawtooth';
-        subOsc.type = 'sawtooth';
+        // Configuração purista: Dente de serra agressiva
+        oscMain.type = 'sawtooth';
+        oscSub.type = 'sawtooth';
         
-        osc.frequency.setValueAtTime(targetFreq, timeline);
-        subOsc.frequency.setValueAtTime(targetFreq * 0.5, timeline); 
+        oscMain.frequency.setValueAtTime(targetFreq, timeline);
+        // Ajustado em 1.5x (Intervalo de Quinta) para dar aquela ressonância metálica "oca" das EOWS de metal
+        oscSub.frequency.setValueAtTime(targetFreq * 1.5, timeline); 
 
-        lfo.frequency.setValueAtTime(4.5, timeline);
-        lfoGain.gain.setValueAtTime(1.8, timeline);
+        // Modulação de fase instável analógica de 5.2Hz (O balanço clássico do som das EOWS)
+        lfoMod.frequency.setValueAtTime(5.2, timeline);
+        lfoGain.gain.setValueAtTime(3.5, timeline); // Modulação profunda para dar o efeito de batimento
         
-        lfo.connect(lfoGain);
-        lfoGain.connect(osc.frequency);
-        lfoGain.connect(subOsc.frequency);
+        lfoMod.connect(lfoGain);
+        lfoGain.connect(oscMain.frequency);
+        lfoGain.connect(oscSub.frequency);
 
-        filter.type = 'highpass';
-        filter.frequency.setValueAtTime(190, timeline);
+        // Filtro passa-alta agressivo: os drivers das EOWS cortavam tudo abaixo de 300Hz para não queimar
+        filterHP.type = 'highpass';
+        filterHP.frequency.setValueAtTime(310, timeline);
 
-        hornPeak.type = 'peaking';
-        hornPeak.frequency.setValueAtTime(targetFreq, timeline);
-        hornPeak.Q.setValueAtTime(4.5, timeline);
+        // Pico de ressonância simulando o formato da corneta retangular (estilo EOWS 115 / Thunderbolt)
+        hornResonance.type = 'peaking';
+        hornResonance.frequency.setValueAtTime(targetFreq * 1.2, timeline);
+        hornResonance.Q.setValueAtTime(5.0);
         let resIntensity = document.getElementById('cfg-horn').value;
-        hornPeak.gain.setValueAtTime(resIntensity * 0.18, timeline);
+        hornResonance.gain.setValueAtTime(resIntensity * 0.22, timeline);
 
-        shaper.curve = generateAmplifierCurve(32);
-        shaper.oversample = '4x';
+        // Clipping pesado do amplificador
+        ampClipping.curve = generateAmplifierCurve(45); // Saturação aumentada para o padrão EOWS
+        ampClipping.oversample = '4x';
 
-        gainNode.gain.setValueAtTime(0, timeline);
-        gainNode.gain.linearRampToValueAtTime(0.55, timeline + 0.015);
-        gainNode.gain.exponentialRampToValueAtTime(0.001, timeline + duration);
+        // Envoltória de Volume EOWS: Ataque seco de relé elétrico e decaimento linear-exponencial
+        ampGain.gain.setValueAtTime(0, timeline);
+        ampGain.gain.linearRampToValueAtTime(0.60, timeline + 0.02); // Clique rápido do início do tom
+        ampGain.gain.exponentialRampToValueAtTime(0.001, timeline + duration);
 
-        let dynamicFilter = ctx.createBiquadFilter();
-        dynamicFilter.type = 'lowpass';
-        dynamicFilter.frequency.setValueAtTime(targetFreq * 3, timeline);
-        dynamicFilter.frequency.exponentialRampToValueAtTime(targetFreq * 0.8, timeline + duration);
+        // Conectando os componentes
+        oscMain.connect(filterHP);
+        oscSub.connect(filterHP);
+        filterHP.connect(hornResonance);
+        hornResonance.connect(ampClipping);
+        ampClipping.connect(ampGain);
+        ampGain.connect(ctx.destination);
 
-        osc.connect(dynamicFilter);
-        subOsc.connect(dynamicFilter);
-        dynamicFilter.connect(filter);
-        filter.connect(hornPeak);
-        hornPeak.connect(shaper);
-        shaper.connect(gainNode);
-        gainNode.connect(ctx.destination);
-
-        osc.start(timeline);
-        subOsc.start(timeline);
-        lfo.start(timeline);
+        oscMain.start(timeline);
+        oscSub.start(timeline);
+        lfoMod.start(timeline);
         
-        osc.stop(timeline + duration);
-        subOsc.stop(timeline + duration);
-        lfo.stop(timeline + duration);
+        oscMain.stop(timeline + duration);
+        oscSub.stop(timeline + duration);
+        lfoMod.stop(timeline + duration);
 
-        activeNodes.push(osc, subOsc, lfo, gainNode);
+        activeNodes.push(oscMain, oscSub, lfoMod, ampGain);
 
+        // Atualiza a frequência no display em tempo real
         let triggerDelay = (timeline - ctx.currentTime) * 1000;
         setTimeout(() => {
-            if (document.getElementById('lbl-mode').innerText === "WESTMINSTER") {
+            if (document.getElementById('lbl-mode').innerText === "EOWS CHIMES") {
                 document.getElementById('lbl-freq').innerText = Math.round(targetFreq) + " Hz";
             }
         }, triggerDelay);
 
-        timeline += (duration * 0.75); 
+        // Intervalo de tempo entre as batidas do carrilhão
+        timeline += (duration * 0.78); 
     }
 
     chimeTimeout = setTimeout(() => {
@@ -232,5 +240,7 @@ function silence(element) {
     });
     document.getElementById('lbl-mode').innerText = "SYSTEM READY";
     document.getElementById('lbl-freq').innerText = "0 Hz";
+}
+
 }
 
