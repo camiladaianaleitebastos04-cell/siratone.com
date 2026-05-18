@@ -1,0 +1,207 @@
+:root {
+    --bg-dark: #0a0c10;
+    --panel-grey: #181b22;
+    --panel-border: #2d3341;
+    --siren-orange: #ff4500;
+    --text-glow: #00ff66;
+    --text-muted: #748194;
+    --text-light: #f0f3f7;
+}
+
+body {
+    background-color: var(--bg-dark);
+    color: var(--text-muted);
+    font-family: 'Courier New', Courier, monospace;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    margin: 0;
+    padding: 15px;
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+/* Chassi do Painel Rack */
+.rack-chassis {
+    background: var(--panel-grey);
+    border: 4px solid var(--panel-border);
+    border-radius: 6px;
+    padding: 30px;
+    width: 100%;
+    max-width: 500px;
+    box-shadow: 0 25px 60px rgba(0, 0, 0, 0.9), 
+                inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    position: relative;
+}
+
+/* Alças de rack metálico nas laterais */
+.rack-chassis::before, .rack-chassis::after {
+    content: '';
+    position: absolute;
+    top: 15%;
+    bottom: 15%;
+    width: 8px;
+    background: #2b303c;
+    border-radius: 3px;
+    border: 1px solid #3e4556;
+}
+.rack-chassis::before { left: -12px; }
+.rack-chassis::after { right: -12px; }
+
+.brand-header {
+    font-size: 0.75rem;
+    letter-spacing: 6px;
+    color: #4f5869;
+    text-align: center;
+    margin-bottom: 2px;
+    font-weight: bold;
+}
+
+h1 {
+    color: var(--text-light);
+    font-size: 1.25rem;
+    text-align: center;
+    margin: 0 0 25px 0;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    border-bottom: 1px dashed var(--panel-border);
+    padding-bottom: 15px;
+}
+
+/* Telas e Displays de Frequência */
+.telemetry-display {
+    background: #050608;
+    border: 2px solid #1f232d;
+    padding: 14px;
+    border-radius: 4px;
+    margin-bottom: 25px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    box-shadow: inset 0 2px 10px rgba(0,0,0,0.8);
+}
+
+.telemetry-display div {
+    font-size: 0.85rem;
+    font-weight: bold;
+}
+
+.status-glow {
+    color: var(--siren-orange);
+    text-shadow: 0 0 8px rgba(255, 69, 0, 0.6);
+}
+
+.freq-glow {
+    color: var(--text-glow);
+    text-shadow: 0 0 8px rgba(0, 255, 102, 0.5);
+    font-size: 1rem !important;
+}
+
+/* Seção dos Potenciômetros deslizantes */
+.potentiometer-group {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 15px;
+    margin-bottom: 30px;
+}
+
+.pot-cell {
+    background: #101217;
+    padding: 12px;
+    border: 1px solid #20242f;
+    border-radius: 3px;
+}
+
+label {
+    display: block;
+    font-size: 0.7rem;
+    margin-bottom: 8px;
+    color: #8a96a8;
+    font-weight: bold;
+    letter-spacing: 0.5px;
+}
+
+input[type="range"] {
+    width: 100%;
+    height: 6px;
+    background: #252a36;
+    border-radius: 3px;
+    outline: none;
+    accent-color: var(--siren-orange);
+    cursor: pointer;
+}
+
+.pot-val {
+    display: block;
+    font-size: 0.8rem;
+    color: var(--text-light);
+    margin-top: 6px;
+    text-align: right;
+    font-weight: bold;
+}
+
+/* Grade de Botões de Disparo */
+.interface-matrix {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+}
+
+button {
+    background: #1f242e;
+    color: var(--text-light);
+    border: 1px solid #31394a;
+    border-bottom: 3px solid #14171e;
+    padding: 15px;
+    font-family: inherit;
+    font-size: 0.85rem;
+    font-weight: bold;
+    cursor: pointer;
+    border-radius: 3px;
+    outline: none;
+    transition: all 0.05s ease;
+    text-transform: uppercase;
+}
+
+button:hover {
+    background: #252b37;
+    border-color: #414b61;
+}
+
+button:active {
+    border-bottom-width: 1px;
+    transform: translateY(2px);
+}
+
+button.active {
+    background: var(--siren-orange);
+    color: #fff;
+    border-color: #ff6a2e;
+    border-bottom: 3px solid #b33000;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.4);
+    box-shadow: inset 0 1px 5px rgba(0,0,0,0.4), 0 0 10px rgba(255, 69, 0, 0.3);
+}
+
+button.abort-command {
+    grid-column: span 2;
+    background: #361c1c;
+    border-color: #5c2c2c;
+    border-bottom: 3px solid #221111;
+    color: #ff8888;
+    margin-top: 5px;
+}
+
+button.abort-command:hover {
+    background: #472323;
+    border-color: #7a3939;
+}
+
+button.abort-command.active {
+    background: #8b0000;
+    color: #fff;
+    border-color: #b30000;
+    border-bottom: 1px solid #4a0000;
+}
+
