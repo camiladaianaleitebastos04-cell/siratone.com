@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Federal Signal Siratone - Ultra Realism ESC-560</title>
+    <style>
+        :root {
+            --bg: #0c0e12;
+            --panel: #161920;
+            --border: #252a34;
+            --accent: #ff4500;
+            --text: #a0aab7;
+        }
+        body {
+            background-color: var(--bg);
+            color: var(--text);
+            font-family: 'Courier New', monospace;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            margin: 0;
+            user-select: none;
+        }
+        .rack {
+            background: var(--panel);
+            border: 3px solid var(--border);
+            border-radius: 4px;
+            padding: 25px;
+            width: 480px;
+            box-shadow: 0 20px 45px rgba(0,0,0,0.9);
+        }
+        .brand {
+            font-size: 0.75rem;
+            letter-spacing: 5px;
+            color: #4b5263;
+            text-align: center;
+            margin-bottom: 5px;
+        }
+        h1 {
+            color: #fff;
+            font-size: 1.3rem;
+            text-align: center;
+            margin: 0 0 25px 0;
+            letter-spacing: 1px;
+        }
+        .display-subsystem {
+            background: #07080c;
+            border: 1px solid var(--border);
+            padding: 12px;
+            border-radius: 2px;
+            margin-bottom: 25px;
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.85rem;
+        }
+        .status-active { color: var(--accent); font-weight: bold; }
+        .knob-section {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 25px;
+        }
+        .knob-container {
+            background: #101218;
+            padding: 12px;
+            border: 1px solid #1a1d24;
+            border-radius: 2px;
+        }
+        label {
+            display: block;
+            font-size: 0.72rem;
+            margin-bottom: 8px;
+            color: #7c8594;
+        }
+        input[type="range"] {
+            width: 100%;
+            accent-color: var(--accent);
+            background: #21252b;
+        }
+        .val-disp {
+            font-size: 0.8rem;
+            color: #fff;
+            display: block;
+            margin-top: 5px;
+            text-align: right;
+        }
+        .btn-matrix {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+        button {
+            background: #1c1f26;
+            color: #fff;
+            border: 1px solid var(--border);
+            padding: 14px;
+            font-family: inherit;
+            font-size: 0.9rem;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.1s;
+        }
+        button:hover { background: #232731; border-color: #4b5263; }
+        button.active {
+            background: var(--accent);
+            border-color: #ff6314;
+            box-shadow: inset 0 0 8px rgba(0,0,0,0.6);
+        }
+        button.stop-btn {
+            grid-column: span 2;
+            background: #2e1919;
+            border-color: #4e2424;
+            color: #ff6b6b;
+        }
+        button.stop-btn:hover { background: #3f2020; }
+    </style>
+</head>
+<body>
+
+    <div class="rack">
+        <div class="brand">FEDERAL SIGNAL CORP.</div>
+        <h1>SIRATONE ESC-560 • ULTRA DEFINITION</h1>
+        
+        <div class="display-subsystem">
+            <div>MODE: <span id="lbl-mode" class="status-active">OFF</span></div>
+            <div>FREQ: <span id="lbl-freq" style="color: #fff;">0 Hz</span></div>
+        </div>
+
+        <div class="knob-section">
+            <div class="knob-container">
+                <label>FREQ. AJUSTE DO SINO</label>
+                <input type="range" id="cfg-pitch" min="380" max="580" value="435">
+                <span id="v-pitch" class="val-disp">435 Hz</span>
+            </div>
+            <div class="knob-container">
+                <label>RESSONÂNCIA DO PROJETOR</label>
+                <input type="range" id="cfg-horn" min="0" max="100" value="65">
+                <span id="v-horn" class="val-disp">65%</span>
+            </div>
+        </div>
+
+        <div class="btn-matrix">
+            <button onclick="triggerChimes(this)">WESTMINSTER CHIMES</button>
+            <button onclick="triggerSiren('wail', this)">WAIL</button>
+            <button onclick="triggerSiren('yelp', this)">YELP</button>
+            <button onclick="triggerSiren('steady', this)">STEADY</button>
+            <button onclick="silence()" class="stop-btn">CANCEL / OFF</button>
+        </div>
+    </div>
+
+    <script>
+        let ctx = null;
+        let activeNodes = [];
+        let loopTimer = null;
+        let chimeTimeout = null;
+
+        function init() {
+            if (!ctx) ctx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+
+        function generateAnalogCurve(amount) {
+            let k = amount, n = 44100, curve = new Float32Array(n);
+            for (let i = 0; i < n; ++i) {
+                let x = (i * 2) / n - 1;
+                curve[i] = ((3 + k) * x) / (Math.PI + k * Math.abs(x));
+            }
+            return curve;
+        }
+
+        // --- SISTEMA EXCLUSIVO DE CHIMES REALISTA ---
+        function triggerChimes(element) {
+            init();
+            silence();
+            
+            document.querySelectorAll('.btn-matrix button').forEach(b => b.classList.remove('active'));
+            if(element) element.classList.add('active');
+            document.getElementById('lbl-mode').innerText = "WESTMINSTER";
+
+            // Sequência exata de notas de Westminster (proporções matemáticas de afinação de carrilhão)
+            const westminsterNotes = [1.0, 1.25, 1.122, 0.75, 1.0, 1.122, 1.25, 1.0]; 
+            const noteDurations = [1.1, 1.1, 1.1, 1.6, 1.1, 1.1, 1.1, 2.0]; // Tempo de sustentação de cada batida
+            
+            let basePitch = parseInt(document.getElementById('cfg-pitch').value);
+            let currentTimeOffset = ctx.currentTime + 0.1;
+
+            for (let i = 0; i < westminsterNotes.length; i++) {
+                let targetFreq = basePitch * westminsterNotes[i];
+                let duration = noteDurations[i];
+
+                // Criando os componentes de hardware para cada batida de sino
+                let osc = ctx.createOscillator();
+                let subOsc = ctx.createOscillator(); // Sub-harmônico para dar peso de carrilhão grande
+                let lfo = ctx.createOscillator(); // Instabilidade analógica (vibrato)
+                let lfoGain = ctx.createGain();
+                
+                let filter = ctx.createBiquadFilter();
+                let hornPeak = ctx.createBiquadFilter();
+                let shaper = ctx.createWaveShaper();
+                let gainNode = ctx.createGain();
+
+                // Configuração dos geradores de onda (Puramente SAWTOOTH para agressividade)
+                osc.type = 'sawtooth';
+                subOsc.type = 'sawtooth';
+                
+                osc.frequency.setValueAtTime(targetFreq, currentTimeOffset);
+                subOsc.frequency.setValueAtTime(targetFreq * 0.5, currentTimeOffset); // Uma oitava abaixo para o "corpo" do sino
+
+                // Configuração do LFO para o "Batimento" e vibração do metal
+                lfo.frequency.setValueAtTime(4.5, currentTimeOffset); // 4.5Hz de modulação térmica
+                lfoGain.gain.setValueAtTime(1.8, currentTimeOffset); // Intensidade do balanço de fase
+                
+                lfo.connect(lfoGain);
+                lfoGain.connect(osc.frequency);
+                lfoGain.connect(subOsc.frequency);
+
+                // Filtros físicos
+                filter.type = 'highpass';
+                filter.frequency.setValueAtTime(180, currentTimeOffset); // Proteção do driver
+
+                hornPeak.type = 'peaking';
+                hornPeak.frequency.setValueAtTime(targetFreq, currentTimeOffset);
+                hornPeak.Q.setValueAtTime(4.0, currentTimeOffset);
+                let resIntensity = document.getElementById('cfg-horn').value;
+                hornPeak.gain.setValueAtTime(resIntensity * 0.18, currentTimeOffset);
+
+                // Clipping analógico
+                shaper.curve = generateAnalogCurve(30);
+                shaper.oversample = '4x';
+
+                // Envoltória Dinâmica Real do Chime (Ataque percussivo imediato e decaimento longo)
+                gainNode.gain.setValueAtTime(0, currentTimeOffset);
+                gainNode.gain.linearRampToValueAtTime(0.55, currentTimeOffset + 0.015); // Ataque seco do martelo elétrico
+                gainNode.gain.exponentialRampToValueAtTime(0.001, currentTimeOffset + duration); // Decaimento natural
+
+                // Filtro dinâmico: o som fica mais opaco conforme morre
+                let dynamicFilter = ctx.createBiquadFilter();
+                dynamicFilter.type = 'lowpass';
+                dynamicFilter.frequency.setValueAtTime(targetFreq * 3, currentTimeOffset);
+                dynamicFilter.frequency.exponentialRampToValueAtTime(targetFreq * 0.8, currentTimeOffset + duration);
+
+                // Conexões
+                osc.connect(dynamicFilter);
+                subOsc.connect(dynamicFilter);
+                
+                dynamicFilter.connect(filter);
+                filter.connect(hornPeak);
+                hornPeak.connect(shaper);
+                shaper.connect(gainNode);
+                gainNode.connect(ctx.destination);
+
+                // Agenda a execução
+                osc.start(currentTimeOffset);
+                subOsc.start(currentTimeOffset);
+                lfo.start(currentTimeOffset);
+                
+                osc.stop(currentTimeOffset + duration);
+                subOsc.stop(currentTimeOffset + duration);
+                lfo.stop(currentTimeOffset + duration);
+
+                // Guardar referências para interrupção manual se o usuário apertar CANCEL
+                activeNodes.push(osc, subOsc, lfo, gainNode);
+
+                // Atualizar display de frequência durante a execução
+                let triggerTimeMs = (currentTimeOffset - ctx.currentTime) * 1000;
+                setTimeout(() => {
+                    if (document.getElementById('lbl-mode').innerText === "WESTMINSTER") {
+                        document.getElementById('lbl-freq').innerText = Math.round(targetFreq) + " Hz";
+                    }
+                }, triggerTimeMs);
+
+                // Avança o tempo para a próxima nota (intervalo musical entre batidas)
+                currentTimeOffset += (duration * 0.72); 
+            }
+
+            // Desliga a luz de ativação quando a música acabar por completo
+            let totalDurationMs = (currentTimeOffset - ctx.currentTime + 1.0) * 1000;
+            chimeTimeout = setTimeout(() => {
+                silence();
+            }, totalDurationMs);
+        }
+
+        // --- SISTEMA DE SIRENE REVISADO (WAIL, YELP, STEADY) ---
+        function triggerSiren(mode, element) {
+            init();
+            silence();
+
+            document.querySelectorAll('.btn-matrix button').forEach(b => b.classList.remove('active'));
+            if(element) element.classList.add('active');
+            document.getElementById('lbl-mode').innerText = mode.toUpperCase();
+
+            let osc = ctx.createOscillator();
+            osc.type = 'sawtooth';
+
+            let filterNode = ctx.createBiquadFilter();
+            filterNode.type = 'highpass';
+            filterNode.frequency.setValueAtTime(280, ctx.currentTime);
+
+            let hornResonance = ctx.createBiquadFilter();
+            hornResonance.type = 'peaking';
+            let resIntensity = document.getElementById('cfg-horn').value;
+            hornResonance.frequency.setValueAtTime(480, ctx.currentTime);
+            hornResonance.Q.setValueAtTime(3.5, ctx.currentTime);
+            hornResonance.gain.setValueAtTime(resIntensity * 0.15, ctx.currentTime);
+
+            let shaperNode = ctx.createWaveShaper();
+            shaperNode.curve = generateAnalogCurve(25);
+            shaperNode.oversample = '4x';
+
+            let gainNode = ctx.createGain();
+            gainNode.gain.setValueAtTime(0, ctx.currentTime);
+            gainNode.gain.linearRampToValueAtTime(0.65, ctx.currentTime + 0.08);
+
+            osc.connect(filterNode);
+            filterNode.connect(hornResonance);
+            hornResonance.connect(shaperNode);
+            shaperNode.connect(gainNode);
+            gainNode.connect(ctx.destination);
+
+            let centerFreq = parseInt(document.getElementById('cfg-pitch').value);
+            osc.frequency.setValueAtTime(centerFreq, ctx.currentTime);
+            osc.start();
+
+            activeNodes.push(osc, gainNode);
+            let startTime = ctx.currentTime;
+
+            if (mode === 'wail') {
+                loopTimer = setInterval(() => {
+                    let elapsed = ctx.currentTime - startTime;
+                    let cycle = elapsed % 6.2;
+                    let currentFreq;
+                    if (cycle < 3.8) {
+                        currentFreq = centerFreq - 120 + (220 * Math.pow(cycle / 3.8, 1.5));
+                    } else {
+                        currentFreq = centerFreq + 100 - (220 * Math.pow((cycle - 3.8) / 2.4, 0.8));
+                    }
+                    osc.frequency.setValueAtTime(currentFreq, ctx.currentTime);
+                    document.getElementById('lbl-freq').innerText = Math.round(currentFreq) + " Hz";
+                }, 25);
+            } else if (mode === 'yelp') {
+                loopTimer = setInterval(() => {
+                    let elapsed = ctx.currentTime - startTime;
+                    let cycle = elapsed % 0.6;
+                    let currentFreq = cycle < 0.35 ? (centerFreq - 100) + (200 * (cycle / 0.35)) : (centerFreq + 100) - (200 * ((cycle - 0.35) / 0.25));
+                    osc.frequency.setValueAtTime(currentFreq, ctx.currentTime);
+                    document.getElementById('lbl-freq').innerText = Math.round(currentFreq) + " Hz";
+                }, 15);
+            } else if (mode === 'steady') {
+                loopTimer = setInterval(() => {
+                    let drift = Math.sin(ctx.currentTime * 5) * 1.5;
+                    osc.frequency.setValueAtTime(centerFreq + drift, ctx.currentTime);
+                    document.getElementById('lbl-freq').innerText = Math.round(centerFreq + drift) + " Hz";
+                }, 50);
+            }
+        }
+
+        function silence() {
+            if (loopTimer) clearInterval(loopTimer);
+            if (chimeTimeout) clearTimeout(chimeTimeout);
+            
+            activeNodes.forEach(node => {
+                try {
+                    if (node instanceof AudioGainNode || node.gain) {
+                        node.gain.setValueAtTime(node.gain.value, ctx.currentTime);
+                        node.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.2);
+                    } else {
+                        node.stop(ctx.currentTime + 0.22);
+                    }
+                } catch(e) {}
+            });
+            
+            activeNodes = [];
+            document.querySelectorAll('.btn-matrix button').forEach(b => b.classList.remove('active'));
+            document.getElementById('lbl-mode').innerText = "OFF";
+            document.getElementById('lbl-freq').innerText = "0 Hz";
+        }
+
+        // Trimpots Update
+        document.getElementById('cfg-pitch').addEventListener('input', (e) => {
+            document.getElementById('v-pitch').innerText = e.target.value + " Hz";
+        });
+        document.getElementById('cfg-horn').addEventListener('input', (e) => {
+            document.getElementById('v-horn').innerText = e.target.value + "%";
+        });
+    </script>
+</body>
+</html>
+
